@@ -9,6 +9,7 @@ To install to a server, just clone on top of your server config's libdir directo
 Allows the use of multipe fact sources at once.
 
 *server.cfg*
+
 ```
 # Set the factsource
 factsource = multisource
@@ -26,6 +27,7 @@ plugin.yaml = /etc/mcollective/facts.yaml
 Can use JSON files as fact sources. Requires yajl-ruby gem.
 
 *server.cfg*
+
 ```
 # Set the factsource
 factsource = json
