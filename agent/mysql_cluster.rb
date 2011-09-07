@@ -14,11 +14,11 @@ module MCollective
       action 'promote' do
         validate :yaml_facts, String
 
-        enable_bin_log
-        reload_mysql
+        if enable_bin_log
+          reload_mysql
+        end
 
         set_facts(request[:yaml_facts], true)
-
         reply.data = "MySQL instance now able to be a master"
       end
 
@@ -28,28 +28,39 @@ module MCollective
         validate :repl_password, String
 
         master = master_hostname
-        enslave(request[:repl_user], request[:repl_password], request[:root_password])
+
+        enslave(master, request[:repl_user], request[:repl_password], request[:root_password])
         reload_mysql
 
         set_facts(request[:yaml_facts], false)
-
         reply.data = "MySQL instance is now a slave of #{master}"
       end
 
       def enable_bin_log
-        command = 's/^\s*#*\s*\(log_bin\s*=.*\)/\1/'
-        status, out, err = run(%{sudo sed -i "#{command}" /etc/mysql/my.cnf})
-        reply.fail! "Could not enable bin log: #{err}" unless status == 0
+        grep_command = '^[^#]*log_bin\s*='
+        needs_update, out, err = run(%{sudo grep "#{grep_command}" /etc/mysql/my.cnf})
+
+        if needs_update == 1
+          sed_command = 's/^\s*#*\s*\(log_bin\s*=.*\)/\1/'
+          status, out, err = run(%{sudo sed -i "#{sed_command}" /etc/mysql/my.cnf})
+          reply.fail! "Could not enable bin log: #{err}" unless status == 0
+          true
+        else
+          false
+        end
       end
 
       def enslave(master, repl_user, repl_password, root_password)
         status, out, err = run("mysql -u root #{"-p#{root_password}" if root_password} -e ''")
         reply.fail! "Could not connect to DB instance: #{err}" unless status == 0
 
+        #TODO: Need to get/load master snapshot
+
         command = "change master to "
         command << "master_host='#{master}' "
         command << "master_user='#{repl_user}' "
         command << "master_password='#{repl_password}' "
+        #TODO: Need this information from the master server
         command << "master_log_file='#{}' "
         command << "master_log_pos=#{};"
 
