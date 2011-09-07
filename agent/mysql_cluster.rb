@@ -63,6 +63,7 @@ module MCollective
       end
 
       def master_hostname
+        #TODO: Use client library instead
         status, out, err = run('mco facts ec2.public_hostname -W "role.mysql_server cluster_master=true"')
 
         out.each do |line|
@@ -89,6 +90,7 @@ module MCollective
 
         #TODO: A bit too EC2 (and factsource) specific, here
         own_hostname = `curl 169.254.169.254/latest/meta-data/public-hostname`
+        #TODO: Use client library instead
         run("mco facts reload -F ec2.public_hostname=#{own_hostname}")
       end
 
