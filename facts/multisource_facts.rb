@@ -15,6 +15,15 @@ module MCollective
         end
       end
 
+      def get_fact(fact = nil)
+        @fact = fact
+        super
+      end
+
+      def force_reload?
+        @fact == 'reload'
+      end
+
       private
 
       def get_plugin(source)
