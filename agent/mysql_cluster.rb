@@ -11,15 +11,12 @@ module MCollective
         :timeout     => 60
       )
 
+      #TODO: This will eventually need to do something a bit more interesting, like promoting
+      #      a slave to become a master through reconfiguration of all other slaves
       action 'promote' do
         validate :yaml_facts, String
-
-        if enable_bin_log
-          reload_mysql
-        end
-
         set_facts(request[:yaml_facts], true)
-        reply.data = "MySQL instance now able to be a master"
+        reply.data = "MySQL instance now the master"
       end
 
       action 'enslave' do
@@ -34,20 +31,6 @@ module MCollective
 
         set_facts(request[:yaml_facts], false)
         reply.data = "MySQL instance is now a slave of #{master}"
-      end
-
-      def enable_bin_log
-        grep_command = '^[^#]*log_bin\s*='
-        needs_update, out, err = run(%{sudo grep "#{grep_command}" /etc/mysql/my.cnf})
-
-        if needs_update == 1
-          sed_command = 's/^\s*#*\s*\(log_bin\s*=.*\)/\1/'
-          status, out, err = run(%{sudo sed -i "#{sed_command}" /etc/mysql/my.cnf})
-          reply.fail! "Could not enable bin log: #{err}" unless status == 0
-          true
-        else
-          false
-        end
       end
 
       def enslave(master, repl_user, repl_password, root_password)
@@ -92,6 +75,7 @@ module MCollective
       def set_facts(facts_file, master)
         yaml_facts = YAML.load_file(facts_file)
 
+        #TODO: Can you match (or anti-match) non-set facts?
         facts = { :cluster_member => true, :cluster_master => master }
         facts.each do |fact, value|
           yaml_facts[fact.to_s] = value
