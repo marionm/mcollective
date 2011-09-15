@@ -22,12 +22,14 @@ module MCollective
       action 'enslave' do
         validate :repl_user, String
 
-        status_file = request[:master_status_file] || '/mnt/mysql/MASTER_STATUS'
-        log_file    = request[:master_log_file]    || read_property(status_file, 'master_log_file')
-        log_pos     = request[:master_log_pos]     || read_property(status_file, 'master_log_pos')
-        master      = request[:master_hostname]    || master_hostname
+        status_file   = request[:master_status_file] || '/mnt/mysql/MASTER_STATUS'
+        master        = request[:master_hostname]    || master_hostname
+        log_file      = request[:master_log_file]    || read_property(status_file, 'master_log_file')
+        log_pos       = request[:master_log_pos]     || read_property(status_file, 'master_log_pos')
+        repl_user     = request[:repl_user]          || 'repl'
+        repl_password = request[:repl_password]      || 'password'
 
-        enslave(master, log_file, log_pos, request[:repl_user], request[:repl_password], request[:root_password])
+        enslave(master, log_file, log_pos, repl_user, repl_password, request[:root_password])
         reload_mysql
 
         set_master_status(false)
@@ -35,20 +37,16 @@ module MCollective
       end
 
       def enslave(master, bin_log_file, bin_log_pos, repl_user, repl_password, root_password)
-        mysql = "mysql -u root #{"-p#{root_password}" if root_password}"
+        set_master = <<-EOC
+          change master to master_host='#{master}', master_user='#{repl_user}',
+          #{"master_password='#{repl_password}'" if repl_password && !repl_password.empty?},
+          master_log_file='#{bin_log_file}', master_log_pos=#{bin_log_pos};
+        EOC
+        mysql = "mysql -u root #{"-p#{root_password}" if root_password && !root_password.empty?} -e"
 
-        run "#{mysql} -e ''", 'Could not connect to DB instance'
-        run "#{mysql} -e 'slave stop'", 'Could not stop slave threads'
-
-        command = "change master to "
-        command << "master_host='#{master}', "
-        command << "master_user='#{repl_user}', "
-        command << "master_password='#{repl_password}', " if repl_password
-        command << "master_log_file='#{bin_log_file}', "
-        command << "master_log_pos=#{bin_log_pos};"
-
-        run %{#{mysql} -e "#{command}"}, 'Could not set master configuration'
-        run "#{mysql} -e 'slave start'", 'Could not start slave threads'
+        run %{#{mysql} "slave stop"},    'Could not stop slave threads'
+        run %{#{mysql} "#{set_master}"}, 'Could not set master configuration'
+        run %{#{mysql} "slave start"},   'Could not start slave threads'
       end
 
       def reload_mysql
@@ -79,11 +77,11 @@ module MCollective
         request[:yaml_facts] || '/etc/mcollective/facts.yaml'
       end
 
-      def set_master_status(master)
+      def set_master_status(is_master)
         yaml_facts = YAML.load_file(facts_file)
 
         #TODO: Can you match (or anti-match) non-set facts?
-        facts = { :cluster_member => true, :cluster_master => master }
+        facts = { :cluster_member => true, :cluster_master => is_master }
         facts.each do |fact, value|
           yaml_facts[fact.to_s] = value
         end
