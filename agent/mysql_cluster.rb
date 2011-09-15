@@ -36,11 +36,9 @@ module MCollective
 
       def enslave(master, bin_log_file, bin_log_pos, repl_user, repl_password, root_password)
         mysql = "mysql -u root #{"-p#{root_password}" if root_password}"
-        status, out, err = run(%{#{mysql} -e ""})
-        reply.fail! "Could not connect to DB instance: #{err}" unless status == 0
 
-        status, out, err = run(%{#{mysql} -e "slave stop"})
-        reply.fail! "Could not stop slave threads: #{err}" unless status == 0
+        run "#{mysql} -e ''", 'Could not connect to DB instance'
+        run "#{mysql} -e 'slave stop'", 'Could not stop slave threads'
 
         command = "change master to "
         command << "master_host='#{master}' "
@@ -49,21 +47,17 @@ module MCollective
         command << "master_log_file='#{log_file}' "
         command << "master_log_pos=#{log_pos};"
 
-        status, out, err = run(%{#{mysql} -e "#{command}"})
-        reply.fail! "Could not set master configuration: #{err}" unless status == 0
-
-        status, out, err = run(%{#{mysql} -e "slave start"})
-        reply.fail! "Could not start slave threads: #{err}" unless status == 0
+        run %{#{mysql} -e "#{command}"}, 'Could not set master configuration'
+        run "#{mysql} -e 'slave start'", 'Could not start slave threads'
       end
 
       def reload_mysql
-        status, out, err = run('sudo service mysql reload')
-        reply.fail! "Could not reload MySQL config: #{err}" unless status == 0
+        run('sudo service mysql reload', 'Could not reload MySQL')
       end
 
       def master_hostname
         #TODO: Use client library instead
-        status, out, err = run('mco facts ec2.public_hostname -W "role.mysql_server cluster_master=true"')
+        out = run('mco facts ec2.public_hostname -W "role.mysql_server cluster_master=true"', 'Could not query master hostname')
 
         out.each do |line|
           if fact = extract_fact(line)
@@ -74,9 +68,7 @@ module MCollective
       end
 
       def read_property(file, property)
-        status, out, err = run(%{sed -E -n 's/^#{property}="(.*)"/\1/pi' #{file}})
-        reply.fail! "Could not read #{property} from #{file}" unless status == 0
-        out.chomp
+        run(%{sed -E -n 's/^#{property}="(.*)"/\1/pi' #{file}}, "Could not read #{property} from #{file}").chomp
       end
 
       def extract_fact(line)
@@ -104,11 +96,19 @@ module MCollective
         run("mco facts reload -F ec2.public_hostname=#{own_hostname}")
       end
 
-      def run(command)
+      def run(command, failure_message = nil)
         out = []
         err = ''
         status = super(command, :stdout => out, :stderr => err)
-        [status, out, err]
+        if failure_message
+          if status != 0
+            reply.fail!("#{failure_message}: #{err}")
+          else
+            out
+          end
+        else
+          [status, out, err]
+        end
       end
     end
   end
