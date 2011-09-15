@@ -14,41 +14,46 @@ module MCollective
       #TODO: This will eventually need to do something a bit more interesting, like promoting
       #      a slave to become a master through reconfiguration of all other slaves
       action 'promote' do
-        validate :yaml_facts, String
-        set_facts(request[:yaml_facts], true)
+        set_master_status(true)
         reply.data = "MySQL instance now the master"
       end
 
+      #Makes the assumption that chef has given us a DB from a snapshot with MASTER_STATUS on it already
       action 'enslave' do
-        validate :yaml_facts, String
         validate :repl_user, String
-        validate :repl_password, String
 
-        master = master_hostname
+        status_file = request[:master_status_file] || '/mnt/mysql/MASTER_STATUS'
+        log_file    = request[:master_log_file]    || read_property(status_file, 'master_log_file')
+        log_pos     = request[:master_log_pos]     || read_property(status_file, 'master_log_pos')
+        master      = request[:master_hostname]    || master_hostname
 
-        enslave(master, request[:repl_user], request[:repl_password], request[:root_password])
+        enslave(master, log_file, log_pos, request[:repl_user], request[:repl_password], request[:root_password])
         reload_mysql
 
-        set_facts(request[:yaml_facts], false)
+        set_master_status(false)
         reply.data = "MySQL instance is now a slave of #{master}"
       end
 
-      def enslave(master, repl_user, repl_password, root_password)
-        status, out, err = run("mysql -u root #{"-p#{root_password}" if root_password} -e ''")
+      def enslave(master, bin_log_file, bin_log_pos, repl_user, repl_password, root_password)
+        mysql = "mysql -u root #{"-p#{root_password}" if root_password}"
+        status, out, err = run(%{#{mysql} -e ""})
         reply.fail! "Could not connect to DB instance: #{err}" unless status == 0
 
-        #TODO: Need to get/load master snapshot
+        status, out, err = run(%{#{mysql} -e "slave stop"})
+        reply.fail! "Could not stop slave threads: #{err}" unless status == 0
 
         command = "change master to "
         command << "master_host='#{master}' "
         command << "master_user='#{repl_user}' "
-        command << "master_password='#{repl_password}' "
-        #TODO: Need this information from the master server
-        command << "master_log_file='#{}' "
-        command << "master_log_pos=#{};"
+        command << "master_password='#{repl_password}' " if repl_password
+        command << "master_log_file='#{log_file}' "
+        command << "master_log_pos=#{log_pos};"
 
-        status, out, err = run(%{mysql -u root #{"-p#{root_password}" if root_password} -e "#{command}"})
+        status, out, err = run(%{#{mysql} -e "#{command}"})
         reply.fail! "Could not set master configuration: #{err}" unless status == 0
+
+        status, out, err = run(%{#{mysql} -e "slave start"})
+        reply.fail! "Could not start slave threads: #{err}" unless status == 0
       end
 
       def reload_mysql
@@ -68,11 +73,21 @@ module MCollective
         nil
       end
 
+      def read_property(file, property)
+        status, out, err = run(%{sed -E -n 's/^#{property}="(.*)"/\1/pi' #{file}})
+        reply.fail! "Could not read #{property} from #{file}" unless status == 0
+        out.chomp
+      end
+
       def extract_fact(line)
         line[/\s*(.*)\s*found \d+ times/, 1]
       end
 
-      def set_facts(facts_file, master)
+      def facts_file
+        request[:yaml_facts] || '/etc/mcollective/facts.yaml'
+      end
+
+      def set_master_status(master)
         yaml_facts = YAML.load_file(facts_file)
 
         #TODO: Can you match (or anti-match) non-set facts?
