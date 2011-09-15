@@ -49,34 +49,6 @@ module MCollective
         run %{#{mysql} "slave start"},   'Could not start slave threads'
       end
 
-      def reload_mysql
-        run('sudo service mysql reload', 'Could not reload MySQL')
-      end
-
-      def master_hostname
-        #TODO: Use client library instead
-        out = run('mco facts ec2.public_hostname -F cluster_master=true', 'Could not query master hostname')
-
-        out.each do |line|
-          if fact = extract_fact(line)
-            return fact
-          end
-        end
-        nil
-      end
-
-      def read_property(file, property)
-        run(%{sed -E -n 's/^#{property}="(.*)"/\\1/pi' #{file}}, "Could not read #{property} from #{file}").last.chomp
-      end
-
-      def extract_fact(line)
-        line[/\s*(.*)\s*found \d+ times/, 1]
-      end
-
-      def facts_file
-        request[:yaml_facts] || '/etc/mcollective/facts.yaml'
-      end
-
       def set_master_status(is_master)
         yaml_facts = YAML.load_file(facts_file)
 
@@ -92,6 +64,30 @@ module MCollective
         own_hostname = `curl 169.254.169.254/latest/meta-data/public-hostname`
         #TODO: Use client library instead
         run("mco facts reload -F ec2.public_hostname=#{own_hostname}")
+      end
+
+      def master_hostname
+        #TODO: Use client library instead
+        out = run('mco facts ec2.public_hostname -F cluster_master=true', 'Could not query master hostname')
+
+        out.each do |line|
+          if fact = line[/\s*(.*)\s*found \d+ times/, 1]
+            return fact
+          end
+        end
+        nil
+      end
+
+      def reload_mysql
+        run('sudo service mysql reload', 'Could not reload MySQL')
+      end
+
+      def facts_file
+        request[:yaml_facts] || '/etc/mcollective/facts.yaml'
+      end
+
+      def read_property(file, property)
+        run(%{sed -E -n 's/^#{property}="(.*)"/\\1/pi' #{file}}, "Could not read #{property} from #{file}").last.chomp
       end
 
       def run(command, failure_message = nil)
