@@ -51,12 +51,8 @@ module MCollective
 
       def set_master_status(is_master)
         yaml_facts = YAML.load_file(facts_file)
-
-        #TODO: Can you match (or anti-match) non-set facts?
-        facts = { :cluster_member => true, :cluster_master => is_master }
-        facts.each do |fact, value|
-          yaml_facts[fact.to_s] = value
-        end
+        yaml_facts['cluster_member'] = true
+        yaml_facts['cluster_master'] = is_master
 
         File.open(facts_file, 'w') { |f| f.write YAML.dump(yaml_facts) }
 
