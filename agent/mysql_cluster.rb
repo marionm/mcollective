@@ -41,11 +41,11 @@ module MCollective
         run "#{mysql} -e 'slave stop'", 'Could not stop slave threads'
 
         command = "change master to "
-        command << "master_host='#{master}' "
-        command << "master_user='#{repl_user}' "
-        command << "master_password='#{repl_password}' " if repl_password
-        command << "master_log_file='#{log_file}' "
-        command << "master_log_pos=#{log_pos};"
+        command << "master_host='#{master}', "
+        command << "master_user='#{repl_user}', "
+        command << "master_password='#{repl_password}', " if repl_password
+        command << "master_log_file='#{bin_log_file}', "
+        command << "master_log_pos=#{bin_log_pos};"
 
         run %{#{mysql} -e "#{command}"}, 'Could not set master configuration'
         run "#{mysql} -e 'slave start'", 'Could not start slave threads'
@@ -57,7 +57,7 @@ module MCollective
 
       def master_hostname
         #TODO: Use client library instead
-        out = run('mco facts ec2.public_hostname -W "role.mysql_server cluster_master=true"', 'Could not query master hostname')
+        out = run('mco facts ec2.public_hostname -F cluster_master=true', 'Could not query master hostname')
 
         out.each do |line|
           if fact = extract_fact(line)
@@ -68,7 +68,7 @@ module MCollective
       end
 
       def read_property(file, property)
-        run(%{sed -E -n 's/^#{property}="(.*)"/\1/pi' #{file}}, "Could not read #{property} from #{file}").chomp
+        run(%{sed -E -n 's/^#{property}="(.*)"/\\1/pi' #{file}}, "Could not read #{property} from #{file}").last.chomp
       end
 
       def extract_fact(line)
