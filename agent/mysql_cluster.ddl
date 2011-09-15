@@ -39,7 +39,7 @@ action 'enslave', :description => 'Makes the MySQL instance a slave server' do
     :maxlength   => 0,
     :optional    => true
 
-  input :master_hostname
+  input :master_hostname,
     :prompt      => 'Master hostname',
     :description => 'The hostname of the cluster master (defaults to a fact lookup)',
     :type        => :string,
@@ -61,7 +61,7 @@ action 'enslave', :description => 'Makes the MySQL instance a slave server' do
     :type        => :string,
     :validation  => /.*/,
     :maxlength   => 0,
-    :optional    => false
+    :optional    => true
 
   input :root_password,
     :prompt      => 'Root password',
