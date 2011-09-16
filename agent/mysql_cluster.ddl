@@ -49,15 +49,15 @@ action 'enslave', :description => 'Makes the MySQL instance a slave server' do
 
   input :repl_user,
     :prompt      => 'Replication user',
-    :description => "The username for the master's replication user",
+    :description => "The username for the master's replication user (repl)",
     :type        => :string,
     :validation  => /.*/,
     :maxlength   => 0,
-    :optional    => false
+    :optional    => true
 
   input :repl_password,
     :prompt      => 'Replication password',
-    :description => "The password for the master's replication user",
+    :description => "The password for the master's replication user (password)",
     :type        => :string,
     :validation  => /.*/,
     :maxlength   => 0,

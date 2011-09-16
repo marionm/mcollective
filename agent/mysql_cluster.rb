@@ -20,8 +20,6 @@ module MCollective
 
       #Makes the assumption that chef has given us a DB from a snapshot with MASTER_STATUS on it already
       action 'enslave' do
-        validate :repl_user, String
-
         status_file   = request[:master_status_file] || '/mnt/mysql/MASTER_STATUS'
         master        = request[:master_hostname]    || master_hostname
         log_file      = request[:master_log_file]    || read_property(status_file, 'master_log_file')
