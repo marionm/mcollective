@@ -1,3 +1,5 @@
+require 'fileutils'
+
 module MCollective
   module Agent
     class Mysql_cluster < RPC::Agent
@@ -14,6 +16,7 @@ module MCollective
       #TODO: This will eventually need to do something a bit more interesting, like promoting
       #      a slave to become a master through reconfiguration of all other slaves
       action 'promote' do
+        schedule_snapshot
         set_master_status(true)
         reply.data = "MySQL instance now the master"
       end
@@ -32,6 +35,21 @@ module MCollective
 
         set_master_status(false)
         reply.data = "MySQL instance is now a slave of #{master}"
+      end
+
+      #TODO: Definitely starting to make too many assumptions in here
+      def schedule_snapshot
+        tmp = '/tmp/crontab'
+        cron = '30 * * * * /usr/bin/take_consistent_snapshot'
+
+        run "sudo crontab -l > #{tmp}", 'Could not dump exiting crontab'
+
+        unless IO.read(tmp).include?(cron)
+          run "echo '#{cron}' >> #{tmp}"
+          run "sudo crontab #{tmp}", 'Could not update crontab'
+        end
+
+        FileUtils.rm tmp
       end
 
       def enslave(master, bin_log_file, bin_log_pos, repl_user, repl_password, root_password)
