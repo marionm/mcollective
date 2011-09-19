@@ -42,7 +42,7 @@ module MCollective
         tmp = '/tmp/crontab'
         cron = '30 * * * * /usr/bin/take_consistent_snapshot'
 
-        run "sudo crontab -l > #{tmp}", 'Could not dump exiting crontab'
+        run "sudo crontab -l > #{tmp}"
 
         unless IO.read(tmp).include?(cron)
           run "echo '#{cron}' >> #{tmp}"
