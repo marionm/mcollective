@@ -6,7 +6,7 @@ To install to a server, just clone on top of your server config's libdir directo
 
 #### Multisource
 
-Allows the use of multipe fact sources at once.
+Allows the use of multiple fact sources at once.
 
 *server.cfg*
 
